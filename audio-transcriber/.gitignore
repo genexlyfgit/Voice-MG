@@ -1,0 +1,39 @@
+# Secrets
+.env
+backend/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Node / Frontend
+node_modules/
+dist/
+.vite/
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Model cache (downloaded by huggingface_hub – can be large)
+# Uncomment to exclude from git:
+# ~/.cache/huggingface/
+
+# Temp audio uploads (cleaned up automatically)
+*.tmp
