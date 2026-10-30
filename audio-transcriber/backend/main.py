@@ -207,6 +207,8 @@ def _transcribe_task(
             job["message"] = "Transcription complete."
             job["transcript"] = gresult.transcript
             job["original_transcript"] = gresult.original_transcript
+            job["english_transcript"] = gresult.english_transcript
+            job["comparison"] = gresult.comparison
             job["segments"] = gresult.segments
             job["detected_language"] = gresult.detected_language
             job["duration_seconds"] = gresult.duration_seconds
@@ -230,6 +232,8 @@ def _transcribe_task(
             job["message"] = "Transcription complete."
             job["transcript"] = result.transcript
             job["original_transcript"] = result.transcript
+            job["english_transcript"] = result.transcript
+            job["comparison"] = None
             job["segments"] = result.segments
             job["detected_language"] = result.detected_language
             job["duration_seconds"] = result.duration_seconds
@@ -302,6 +306,8 @@ async def create_transcription_job(
         "message": "Job queued — waiting for the transcription worker…",
         "transcript": None,
         "original_transcript": None,
+        "english_transcript": None,
+        "comparison": None,
         "segments": None,
         "detected_language": None,
         "duration_seconds": None,
@@ -341,6 +347,8 @@ async def get_transcription_status(job_id: str) -> dict:
         "message": job["message"],
         "transcript": job.get("transcript"),
         "original_transcript": job.get("original_transcript"),
+        "english_transcript": job.get("english_transcript"),
+        "comparison": job.get("comparison"),
         "segments": job.get("segments"),
         "detected_language": job.get("detected_language"),
         "duration_seconds": job.get("duration_seconds"),

@@ -77,7 +77,9 @@ class Segment:
 @dataclass
 class GeminiTranscriptionResult:
     transcript: str                 # primary output (translated, if requested)
-    original_transcript: str        # verbatim transcript in the spoken language
+    original_transcript: str        # verbatim transcript in the spoken language (native script)
+    english_transcript: str         # verbatim transcript translated to English, same timing
+    comparison: list[dict]          # [{start, end, native, english}] for side-by-side review
     segments: list[dict]            # timestamped, audio-synced; text matches `transcript`
     detected_language: str
     duration_seconds: float
@@ -308,12 +310,33 @@ def run_gemini_transcription(
 
     if language and language.lower() != "auto":
         if progress_callback is not None:
-            progress_callback(96)
+            progress_callback(90)
         translated_segments = _translate_segments(client, segments, language)
         if translated_segments:
             out_segments = translated_segments
             transcript = _render_transcript(translated_segments, include_timestamps)
             detected_language = language
+
+    # Always produce an English side-by-side version (native script + English),
+    # so every word can be checked against the audio for annotation work, no
+    # matter which target language was selected.
+    if progress_callback is not None:
+        progress_callback(95)
+    if language and language.lower() in ("en", "english"):
+        english_segments = out_segments
+    else:
+        english_segments = _translate_segments(client, segments, "English") or segments
+    english_transcript = _render_transcript(english_segments, include_timestamps)
+
+    comparison = []
+    for i, native_seg in enumerate(segments):
+        eng_text = english_segments[i].text if i < len(english_segments) else ""
+        comparison.append({
+            "start": round(native_seg.start, 2),
+            "end": round(native_seg.end, 2),
+            "native": native_seg.text,
+            "english": eng_text,
+        })
 
     if progress_callback is not None:
         progress_callback(100)
@@ -323,6 +346,8 @@ def run_gemini_transcription(
     return GeminiTranscriptionResult(
         transcript=transcript,
         original_transcript=original_transcript,
+        english_transcript=english_transcript,
+        comparison=comparison,
         segments=[{"start": round(s.start, 2), "end": round(s.end, 2), "text": s.text} for s in out_segments],
         detected_language=detected_language,
         duration_seconds=round(duration_seconds, 2),

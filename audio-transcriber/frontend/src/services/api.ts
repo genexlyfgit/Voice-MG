@@ -25,6 +25,8 @@ export interface JobStatus {
   message: string
   transcript?: string
   original_transcript?: string
+  english_transcript?: string
+  comparison?: Array<{ start: number; end: number; native: string; english: string }>
   detected_language?: string
   duration_seconds?: number
   processing_seconds?: number

@@ -24,6 +24,8 @@ interface FileJob {
   transcript: string
   editedTranscript: string
   originalTranscript: string
+  englishTranscript: string
+  comparison: JobStatus['comparison']
   segments: JobStatus['segments']
   detectedLanguage?: string
   durationSeconds?: number
@@ -40,6 +42,8 @@ function makeJob(file: File): FileJob {
     transcript: '',
     editedTranscript: '',
     originalTranscript: '',
+    englishTranscript: '',
+    comparison: undefined,
     segments: undefined,
     detectedLanguage: undefined,
     durationSeconds: undefined,
@@ -124,6 +128,8 @@ export default function App() {
               transcript: job.transcript ?? '',
               editedTranscript: job.transcript ?? '',
               originalTranscript: job.original_transcript ?? '',
+              englishTranscript: job.english_transcript ?? '',
+              comparison: job.comparison,
               segments: job.segments,
               detectedLanguage: job.detected_language,
               durationSeconds: job.duration_seconds,
@@ -403,6 +409,8 @@ export default function App() {
                 key={`${job.file.name}-${i}`}
                 transcript={job.editedTranscript}
                 originalTranscript={job.originalTranscript}
+                englishTranscript={job.englishTranscript}
+                comparison={job.comparison}
                 segments={job.segments}
                 filename={job.file.name}
                 detectedLanguage={job.detectedLanguage}
