@@ -11,6 +11,7 @@ interface Segment {
 
 interface Props {
   transcript: string
+  originalTranscript?: string
   segments?: Segment[]
   filename?: string
   detectedLanguage?: string
@@ -26,9 +27,10 @@ function formatTs(secs: number) {
 }
 
 const TranscriptViewer: React.FC<Props> = ({
-  transcript, segments, filename, detectedLanguage, includeTimestamps, onTranscriptChange,
+  transcript, originalTranscript, segments, filename, detectedLanguage, includeTimestamps, onTranscriptChange,
 }) => {
   const [copied, setCopied] = useState(false)
+  const isTranslated = !!originalTranscript && originalTranscript !== transcript
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(transcript)
@@ -36,16 +38,19 @@ const TranscriptViewer: React.FC<Props> = ({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleDownload = () => {
-    const blob = new Blob([transcript], { type: 'text/plain;charset=utf-8' })
+  const download = (text: string, suffix: string) => {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     const base = filename ? filename.replace(/\.[^.]+$/, '') : 'transcript'
     a.href = url
-    a.download = `${base}_transcript.txt`
+    a.download = `${base}${suffix}.txt`
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  const handleDownload = () => download(transcript, isTranslated ? `_${detectedLanguage ?? 'translated'}` : '_transcript')
+  const handleDownloadOriginal = () => originalTranscript && download(originalTranscript, '_original')
 
   return (
     <div className="glass-card p-6 animate-slide-up">
@@ -102,6 +107,29 @@ const TranscriptViewer: React.FC<Props> = ({
         dir="auto"
         style={{ unicodeBidi: 'plaintext' }}
       />
+
+      {/* Original-language transcript (shown when translated) */}
+      {isTranslated && (
+        <details className="mt-4 group">
+          <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-300 transition-colors select-none flex items-center justify-between">
+            <span>▶ Show original-language transcript (as spoken)</span>
+            <button
+              onClick={(e) => { e.preventDefault(); handleDownloadOriginal() }}
+              className="btn-secondary text-xs py-1 px-2 ml-2"
+              title="Download original transcript"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Original TXT
+            </button>
+          </summary>
+          <pre
+            className="mt-2 max-h-60 overflow-y-auto text-xs text-slate-400 whitespace-pre-wrap font-mono leading-relaxed bg-slate-900/40 rounded-lg p-3"
+            dir="auto"
+          >
+            {originalTranscript}
+          </pre>
+        </details>
+      )}
 
       {/* Segment timestamps (if available and enabled) */}
       {includeTimestamps && segments && segments.length > 0 && (

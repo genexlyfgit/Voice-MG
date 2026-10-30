@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Mic2, Settings2, Clock, ChevronDown } from 'lucide-react'
 import AudioUpload from './components/AudioUpload'
 import LanguageSelector from './components/LanguageSelector'
@@ -15,10 +15,43 @@ const POLL_INTERVAL_MS = 1000
 const MODELS = ['gemini-3.5-transcribe', 'large-v3', 'large-v2', 'medium', 'small', 'base', 'tiny']
 const COMPUTE_TYPES = ['int8', 'float16', 'float32']
 
+interface FileJob {
+  file: File
+  status: AppStatus
+  message: string
+  uploadPercent: number
+  transcribePercent: number
+  transcript: string
+  editedTranscript: string
+  originalTranscript: string
+  segments: JobStatus['segments']
+  detectedLanguage?: string
+  durationSeconds?: number
+  processingSeconds?: number
+}
+
+function makeJob(file: File): FileJob {
+  return {
+    file,
+    status: 'idle',
+    message: '',
+    uploadPercent: 0,
+    transcribePercent: 0,
+    transcript: '',
+    editedTranscript: '',
+    originalTranscript: '',
+    segments: undefined,
+    detectedLanguage: undefined,
+    durationSeconds: undefined,
+    processingSeconds: undefined,
+  }
+}
+
 export default function App() {
-  // file
-  const [file, setFile] = useState<File | null>(null)
-  const [audioDuration, setAudioDuration] = useState<number | null>(null)
+  // files / per-file jobs
+  const [jobs, setJobs] = useState<FileJob[]>([])
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const [batchRunning, setBatchRunning] = useState(false)
 
   // languages
   const [languages, setLanguages] = useState<Language[]>([])
@@ -28,25 +61,13 @@ export default function App() {
   const [backendOk, setBackendOk] = useState<boolean | null>(null)
   const [device, setDevice] = useState('cpu')
 
-  // job state
-  const [appStatus, setAppStatus] = useState<AppStatus>('idle')
-  const [statusMsg, setStatusMsg] = useState('')
-  const [uploadPercent, setUploadPercent] = useState(0)
-  const [transcribePercent, setTranscribePercent] = useState(0)
-  const [jobId, setJobId] = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  // transcript
-  const [jobResult, setJobResult] = useState<JobStatus | null>(null)
-  const [editedTranscript, setEditedTranscript] = useState('')
-
   // settings
   const [showSettings, setShowSettings] = useState(false)
   const [model, setModel] = useState('gemini-3.5-transcribe')
   const [computeType, setComputeType] = useState('int8')
   const [beamSize, setBeamSize] = useState(1)
   const [vadFilter, setVadFilter] = useState(true)
-  const [includeTimestamps, setIncludeTimestamps] = useState(false)
+  const [includeTimestamps, setIncludeTimestamps] = useState(true)
 
   // ---- Backend health check ----
   useEffect(() => {
@@ -71,66 +92,68 @@ export default function App() {
       .catch(() => {/* will retry on next health check */})
   }, [backendOk])
 
-  // ---- Derive audio duration from file ----
-  useEffect(() => {
-    if (!file) { setAudioDuration(null); return }
-    const url = URL.createObjectURL(file)
-    const audio = new Audio()
-    audio.src = url
-    audio.onloadedmetadata = () => {
-      setAudioDuration(isFinite(audio.duration) ? audio.duration : null)
-      URL.revokeObjectURL(url)
-    }
-    audio.onerror = () => URL.revokeObjectURL(url)
-  }, [file])
+  const updateJob = (index: number, patch: Partial<FileJob>) => {
+    setJobs((prev) => prev.map((j, i) => (i === index ? { ...j, ...patch } : j)))
+  }
 
-  // ---- Polling ----
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
-  }, [])
+  // ---- File management ----
+  const addFiles = (files: File[]) => {
+    setJobs((prev) => [...prev, ...files.map(makeJob)])
+  }
 
-  const startPolling = useCallback((id: string) => {
-    stopPolling()
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await getJobStatus(id)
-        const job = res.data
-        setStatusMsg(job.message)
-        if (typeof job.progress === 'number') {
-          setTranscribePercent(job.progress)
+  const removeFile = (index: number) => {
+    setJobs((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  // ---- Poll a single job until done/error ----
+  const pollJob = (jobId: string, index: number): Promise<void> => {
+    return new Promise((resolve) => {
+      const interval = setInterval(async () => {
+        try {
+          const res = await getJobStatus(jobId)
+          const job = res.data
+          updateJob(index, {
+            message: job.message,
+            transcribePercent: typeof job.progress === 'number' ? job.progress : 0,
+          })
+          if (job.status === 'done') {
+            clearInterval(interval)
+            updateJob(index, {
+              status: 'done',
+              transcribePercent: 100,
+              transcript: job.transcript ?? '',
+              editedTranscript: job.transcript ?? '',
+              originalTranscript: job.original_transcript ?? '',
+              segments: job.segments,
+              detectedLanguage: job.detected_language,
+              durationSeconds: job.duration_seconds,
+              processingSeconds: job.processing_seconds,
+            })
+            resolve()
+          } else if (job.status === 'error') {
+            clearInterval(interval)
+            updateJob(index, { status: 'error', message: job.message })
+            resolve()
+          } else {
+            updateJob(index, { status: job.status as AppStatus })
+          }
+        } catch (e: unknown) {
+          const err = e as { response?: { data?: { detail?: string } }; message?: string }
+          clearInterval(interval)
+          updateJob(index, {
+            status: 'error',
+            message: err?.response?.data?.detail ?? 'Lost connection to backend',
+          })
+          resolve()
         }
-        if (job.status === 'done') {
-          stopPolling()
-          setAppStatus('done')
-          setTranscribePercent(100)
-          setJobResult(job)
-          setEditedTranscript(job.transcript ?? '')
-        } else if (job.status === 'error') {
-          stopPolling()
-          setAppStatus('error')
-        } else {
-          setAppStatus(job.status)
-        }
-      } catch (e: unknown) {
-        const err = e as { response?: { data?: { detail?: string } }; message?: string }
-        setStatusMsg(err?.response?.data?.detail ?? 'Lost connection to backend')
-        setAppStatus('error')
-        stopPolling()
-      }
-    }, POLL_INTERVAL_MS)
-  }, [stopPolling])
+      }, POLL_INTERVAL_MS)
+    })
+  }
 
-  useEffect(() => () => stopPolling(), [stopPolling])
-
-  // ---- Transcribe ----
-  const handleTranscribe = async () => {
-    if (!file || !backendOk) return
-    setAppStatus('uploading')
-    setStatusMsg('Uploading audio file…')
-    setUploadPercent(0)
-    setTranscribePercent(0)
-    setJobResult(null)
-    setEditedTranscript('')
+  // ---- Transcribe all queued files, one at a time ----
+  const handleTranscribeAll = async () => {
+    if (jobs.length === 0 || !backendOk) return
+    setBatchRunning(true)
 
     const options: TranscribeOptions = {
       language: selectedLang === 'auto' ? undefined : selectedLang,
@@ -141,24 +164,35 @@ export default function App() {
       compute_type: computeType,
     }
 
-    try {
-      const res = await submitTranscription(file, options, (pct) => {
-        setUploadPercent(pct)
-      })
-      const { job_id } = res.data
-      setJobId(job_id)
-      setAppStatus('queued')
-      setStatusMsg('Job queued — waiting for the model…')
-      startPolling(job_id)
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: string } }; message?: string }
-      setAppStatus('error')
-      setStatusMsg(err?.response?.data?.detail ?? err?.message ?? 'Upload failed')
+    for (let i = 0; i < jobs.length; i++) {
+      if (jobs[i].status === 'done') continue // skip already-completed files on retry
+      setActiveIndex(i)
+      updateJob(i, { status: 'uploading', message: 'Uploading audio file…', uploadPercent: 0, transcribePercent: 0 })
+
+      try {
+        const res = await submitTranscription(jobs[i].file, options, (pct) => {
+          updateJob(i, { uploadPercent: pct })
+        })
+        const { job_id } = res.data
+        updateJob(i, { status: 'queued', message: 'Job queued — waiting for the model…' })
+        await pollJob(job_id, i)
+      } catch (e: unknown) {
+        const err = e as { response?: { data?: { detail?: string } }; message?: string }
+        updateJob(i, {
+          status: 'error',
+          message: err?.response?.data?.detail ?? err?.message ?? 'Upload failed',
+        })
+      }
     }
+
+    setBatchRunning(false)
+    setActiveIndex(null)
   }
 
-  const isRunning = ['uploading', 'queued', 'processing'].includes(appStatus)
-  const canTranscribe = file !== null && backendOk === true && !isRunning
+  const isRunning = batchRunning
+  const canTranscribe = jobs.length > 0 && backendOk === true && !isRunning
+  const activeJob = activeIndex !== null ? jobs[activeIndex] : null
+  const doneCount = jobs.filter((j) => j.status === 'done').length
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -179,7 +213,7 @@ export default function App() {
             VoiceScribe
           </h1>
           <p className="mt-2 text-slate-400 text-base sm:text-lg">
-            Offline audio transcription powered by <span className="text-brand-400 font-medium">Whisper</span>
+            Audio transcription powered by <span className="text-brand-400 font-medium">Gemini</span>
           </p>
         </header>
 
@@ -187,14 +221,13 @@ export default function App() {
           {/* Upload card */}
           <section className="glass-card p-6">
             <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-4">
-              1 · Audio File
+              1 · Audio Files {jobs.length > 0 && <span className="text-slate-600 normal-case font-normal">({jobs.length} selected)</span>}
             </h2>
             <AudioUpload
-              file={file}
-              onFileSelect={(f) => { setFile(f); setAppStatus('idle'); setTranscribePercent(0); setJobResult(null); setStatusMsg('') }}
-              onFileClear={() => { setFile(null); setAudioDuration(null); setAppStatus('idle'); setTranscribePercent(0); setJobResult(null); setStatusMsg('') }}
+              files={jobs.map((j) => j.file)}
+              onFilesAdd={addFiles}
+              onFileRemove={removeFile}
               disabled={isRunning}
-              audioDuration={audioDuration}
             />
           </section>
 
@@ -209,6 +242,10 @@ export default function App() {
               onChange={setSelectedLang}
               disabled={isRunning}
             />
+            <p className="text-xs text-slate-600 mt-2">
+              Each file is transcribed and, if a language other than Auto-detect is picked, translated into
+              it — every file gets its own separate .txt output.
+            </p>
           </section>
 
           {/* Advanced settings (collapsible) */}
@@ -322,15 +359,19 @@ export default function App() {
             )}
           </section>
 
-          {/* Status panel */}
+          {/* Status panel — reflects the file currently being processed */}
           <StatusPanel
-            status={appStatus}
-            message={statusMsg}
-            uploadPercent={uploadPercent}
-            transcribePercent={transcribePercent}
-            detectedLanguage={jobResult?.detected_language}
-            durationSeconds={jobResult?.duration_seconds}
-            processingSeconds={jobResult?.processing_seconds}
+            status={activeJob ? activeJob.status : (jobs.length > 0 && doneCount === jobs.length ? 'done' : 'idle')}
+            message={
+              activeJob
+                ? `File ${activeIndex! + 1}/${jobs.length}: ${activeJob.file.name} — ${activeJob.message}`
+                : (jobs.length > 0 ? `${doneCount}/${jobs.length} files transcribed` : '')
+            }
+            uploadPercent={activeJob?.uploadPercent ?? 0}
+            transcribePercent={activeJob?.transcribePercent ?? 0}
+            detectedLanguage={activeJob?.detectedLanguage}
+            durationSeconds={activeJob?.durationSeconds}
+            processingSeconds={activeJob?.processingSeconds}
             backendOk={backendOk}
             device={device}
           />
@@ -338,38 +379,47 @@ export default function App() {
           {/* Transcribe button */}
           <button
             id="transcribe-btn"
-            onClick={handleTranscribe}
+            onClick={handleTranscribeAll}
             disabled={!canTranscribe}
             className="btn-primary w-full py-4 text-base justify-center"
           >
             {isRunning ? (
               <>
                 <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Processing…
+                Processing {activeIndex !== null ? activeIndex + 1 : 0}/{jobs.length}…
               </>
             ) : (
               <>
                 <Mic2 className="w-5 h-5" />
-                Transcribe Audio
+                Transcribe {jobs.length > 1 ? `${jobs.length} Files` : 'Audio'}
               </>
             )}
           </button>
 
-          {/* Transcript viewer */}
-          {appStatus === 'done' && jobResult && (
-            <TranscriptViewer
-              transcript={editedTranscript}
-              segments={jobResult.segments}
-              filename={file?.name}
-              detectedLanguage={jobResult.detected_language}
-              includeTimestamps={includeTimestamps}
-              onTranscriptChange={setEditedTranscript}
-            />
-          )}
+          {/* Per-file transcript results */}
+          {jobs.map((job, i) => (
+            job.status === 'done' ? (
+              <TranscriptViewer
+                key={`${job.file.name}-${i}`}
+                transcript={job.editedTranscript}
+                originalTranscript={job.originalTranscript}
+                segments={job.segments}
+                filename={job.file.name}
+                detectedLanguage={job.detectedLanguage}
+                includeTimestamps={includeTimestamps}
+                onTranscriptChange={(text) => updateJob(i, { editedTranscript: text })}
+              />
+            ) : job.status === 'error' ? (
+              <div key={`${job.file.name}-${i}`} className="glass-card p-4 border border-red-900/40">
+                <p className="text-sm font-semibold text-red-400">{job.file.name} failed</p>
+                <p className="text-xs text-slate-500 mt-1">{job.message}</p>
+              </div>
+            ) : null
+          ))}
         </main>
 
         <footer className="text-center mt-16 text-slate-700 text-xs">
-          Powered by faster-whisper · Runs entirely on your machine · No data leaves your device
+          Powered by Gemini · Each file produces its own transcript
         </footer>
       </div>
     </div>

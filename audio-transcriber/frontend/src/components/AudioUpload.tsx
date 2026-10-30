@@ -1,12 +1,11 @@
 import React, { useCallback, useRef, useState } from 'react'
-import { Upload, FileAudio, X, AlertCircle } from 'lucide-react'
+import { Upload, FileAudio, X, AlertCircle, Plus } from 'lucide-react'
 
 interface Props {
-  file: File | null
-  onFileSelect: (file: File) => void
-  onFileClear: () => void
+  files: File[]
+  onFilesAdd: (files: File[]) => void
+  onFileRemove: (index: number) => void
   disabled?: boolean
-  audioDuration: number | null
 }
 
 const ACCEPTED_TYPES = [
@@ -22,15 +21,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-function formatDuration(secs: number) {
-  const h = Math.floor(secs / 3600)
-  const m = Math.floor((secs % 3600) / 60)
-  const s = Math.floor(secs % 60)
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  return `${m}:${String(s).padStart(2, '0')}`
-}
-
-const AudioUpload: React.FC<Props> = ({ file, onFileSelect, onFileClear, disabled, audioDuration }) => {
+const AudioUpload: React.FC<Props> = ({ files, onFilesAdd, onFileRemove, disabled }) => {
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -40,69 +31,71 @@ const AudioUpload: React.FC<Props> = ({ file, onFileSelect, onFileClear, disable
       return `Unsupported format: ${f.name}. Please use MP3, WAV, M4A, FLAC, OGG, or similar.`
     }
     if (f.size > 2 * 1024 * 1024 * 1024) {
-      return 'File is too large (max 2 GB).'
+      return `File is too large (max 2 GB): ${f.name}`
     }
     return null
   }
 
-  const handleFile = useCallback((f: File) => {
-    const err = validate(f)
-    if (err) { setError(err); return }
-    setError(null)
-    onFileSelect(f)
-  }, [onFileSelect])
+  const handleFiles = useCallback((list: FileList | File[]) => {
+    const incoming = Array.from(list)
+    const valid: File[] = []
+    let err: string | null = null
+    for (const f of incoming) {
+      const v = validate(f)
+      if (v) { err = v; continue }
+      valid.push(f)
+    }
+    setError(err)
+    if (valid.length > 0) onFilesAdd(valid)
+  }, [onFilesAdd])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragging(false)
-    const f = e.dataTransfer.files[0]
-    if (f) handleFile(f)
-  }, [handleFile])
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files)
+  }, [handleFiles])
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]
-    if (f) handleFile(f)
+    if (e.target.files?.length) handleFiles(e.target.files)
     e.target.value = ''
-  }
-
-  if (file) {
-    const ext = file.name.split('.').pop()?.toUpperCase() ?? 'AUDIO'
-    return (
-      <div className="glass-card p-5 animate-fade-in">
-        <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center">
-            <FileAudio className="w-6 h-6 text-brand-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-slate-100 truncate" title={file.name}>{file.name}</p>
-            <div className="flex flex-wrap gap-3 mt-1.5">
-              <span className="badge bg-slate-700/60 text-slate-300">{ext}</span>
-              <span className="badge bg-slate-700/60 text-slate-300">{formatBytes(file.size)}</span>
-              {audioDuration !== null && (
-                <span className="badge bg-brand-600/20 text-brand-300 border border-brand-500/30">
-                  ⏱ {formatDuration(audioDuration)}
-                </span>
-              )}
-            </div>
-          </div>
-          {!disabled && (
-            <button
-              id="clear-file-btn"
-              onClick={onFileClear}
-              className="flex-shrink-0 w-8 h-8 rounded-lg bg-slate-700 hover:bg-red-900/60 text-slate-400 hover:text-red-400
-                         flex items-center justify-center transition-all duration-200"
-              aria-label="Remove file"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
-    )
   }
 
   return (
     <div>
+      {files.length > 0 && (
+        <div className="space-y-2 mb-3">
+          {files.map((file, i) => {
+            const ext = file.name.split('.').pop()?.toUpperCase() ?? 'AUDIO'
+            return (
+              <div key={`${file.name}-${i}`} className="glass-card p-4 animate-fade-in">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center">
+                    <FileAudio className="w-5 h-5 text-brand-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-100 truncate text-sm" title={file.name}>{file.name}</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      <span className="badge bg-slate-700/60 text-slate-300">{ext}</span>
+                      <span className="badge bg-slate-700/60 text-slate-300">{formatBytes(file.size)}</span>
+                    </div>
+                  </div>
+                  {!disabled && (
+                    <button
+                      onClick={() => onFileRemove(i)}
+                      className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-700 hover:bg-red-900/60 text-slate-400 hover:text-red-400
+                                 flex items-center justify-center transition-all duration-200"
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       <div
         id="drop-zone"
         role="button"
@@ -113,8 +106,9 @@ const AudioUpload: React.FC<Props> = ({ file, onFileSelect, onFileClear, disable
         onDragLeave={() => setDragging(false)}
         onDrop={disabled ? undefined : onDrop}
         className={`
-          relative group cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center
+          relative group cursor-pointer rounded-2xl border-2 border-dashed text-center
           transition-all duration-300
+          ${files.length > 0 ? 'p-6' : 'p-10'}
           ${dragging
             ? 'border-brand-400 bg-brand-900/20 scale-[1.01]'
             : 'border-slate-600 hover:border-brand-500/70 hover:bg-slate-800/40'
@@ -123,14 +117,20 @@ const AudioUpload: React.FC<Props> = ({ file, onFileSelect, onFileClear, disable
         `}
       >
         <div className={`
-          w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center
+          mx-auto mb-3 rounded-2xl flex items-center justify-center
           transition-all duration-300
+          ${files.length > 0 ? 'w-10 h-10' : 'w-16 h-16 mb-4'}
           ${dragging ? 'bg-brand-600/30 scale-110' : 'bg-slate-700/60 group-hover:bg-brand-700/20'}
         `}>
-          <Upload className={`w-7 h-7 transition-colors duration-200 ${dragging ? 'text-brand-300' : 'text-slate-400 group-hover:text-brand-400'}`} />
+          {files.length > 0
+            ? <Plus className="w-5 h-5 text-slate-400 group-hover:text-brand-400" />
+            : <Upload className={`w-7 h-7 transition-colors duration-200 ${dragging ? 'text-brand-300' : 'text-slate-400 group-hover:text-brand-400'}`} />
+          }
         </div>
-        <p className="text-slate-200 font-semibold text-lg mb-1">Drop your audio file here</p>
-        <p className="text-slate-500 text-sm mb-4">or click to browse files</p>
+        <p className="text-slate-200 font-semibold text-lg mb-1">
+          {files.length > 0 ? 'Add more audio files' : 'Drop your audio files here'}
+        </p>
+        <p className="text-slate-500 text-sm mb-4">or click to browse files — multiple allowed</p>
         <div className="flex flex-wrap justify-center gap-1.5">
           {['MP3', 'WAV', 'M4A', 'FLAC', 'OGG', 'WebM', 'AAC'].map((fmt) => (
             <span key={fmt} className="badge bg-slate-800 text-slate-400 border border-slate-700">{fmt}</span>
@@ -140,6 +140,7 @@ const AudioUpload: React.FC<Props> = ({ file, onFileSelect, onFileClear, disable
           ref={inputRef}
           id="audio-file-input"
           type="file"
+          multiple
           accept="audio/*,video/mp4,.flac,.ogg,.webm,.aac,.m4a,.opus"
           className="hidden"
           onChange={onInputChange}

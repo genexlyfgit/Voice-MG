@@ -24,6 +24,7 @@ export interface JobStatus {
   progress?: number
   message: string
   transcript?: string
+  original_transcript?: string
   detected_language?: string
   duration_seconds?: number
   processing_seconds?: number

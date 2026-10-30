@@ -206,7 +206,8 @@ def _transcribe_task(
             job["progress"] = 100
             job["message"] = "Transcription complete."
             job["transcript"] = gresult.transcript
-            job["segments"] = []
+            job["original_transcript"] = gresult.original_transcript
+            job["segments"] = gresult.segments
             job["detected_language"] = gresult.detected_language
             job["duration_seconds"] = gresult.duration_seconds
             job["processing_seconds"] = round(elapsed, 1)
@@ -228,6 +229,7 @@ def _transcribe_task(
             job["progress"] = 100
             job["message"] = "Transcription complete."
             job["transcript"] = result.transcript
+            job["original_transcript"] = result.transcript
             job["segments"] = result.segments
             job["detected_language"] = result.detected_language
             job["duration_seconds"] = result.duration_seconds
@@ -299,6 +301,7 @@ async def create_transcription_job(
         "progress": 0,
         "message": "Job queued — waiting for the transcription worker…",
         "transcript": None,
+        "original_transcript": None,
         "segments": None,
         "detected_language": None,
         "duration_seconds": None,
@@ -337,6 +340,7 @@ async def get_transcription_status(job_id: str) -> dict:
         "progress": job.get("progress", 0),
         "message": job["message"],
         "transcript": job.get("transcript"),
+        "original_transcript": job.get("original_transcript"),
         "segments": job.get("segments"),
         "detected_language": job.get("detected_language"),
         "duration_seconds": job.get("duration_seconds"),
