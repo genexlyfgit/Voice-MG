@@ -71,3 +71,36 @@ export const submitTranscription = (
 
 export const getJobStatus = (jobId: string) =>
   api.get<JobStatus>(`/transcribe/${jobId}`)
+
+export interface HistoryItem {
+  id: string
+  filename: string | null
+  status: string
+  language: string | null
+  detected_language: string | null
+  duration_seconds: number | null
+  processing_seconds: number | null
+  created_at: string
+}
+
+export const getHistory = (limit = 50) =>
+  api.get<{ enabled: boolean; jobs: HistoryItem[] }>('/history', { params: { limit } })
+
+export interface HistoryDetail {
+  id: string
+  filename: string | null
+  status: string
+  language: string | null
+  detected_language: string | null
+  transcript: string | null
+  original_transcript: string | null
+  english_transcript: string | null
+  comparison: Array<{ start: number; end: number; native: string; english: string }> | null
+  segments: Array<{ start: number; end: number; text: string }> | null
+  duration_seconds: number | null
+  processing_seconds: number | null
+  created_at: string
+}
+
+export const getHistoryDetail = (jobId: string) =>
+  api.get<HistoryDetail>(`/history/${jobId}`)

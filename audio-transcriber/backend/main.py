@@ -32,6 +32,7 @@ load_dotenv()
 
 from transcription import get_device_info, run_transcription
 from gemini_transcription import run_gemini_transcription
+import db
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -57,6 +58,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.on_event("startup")
+async def on_startup() -> None:
+    db.init_db()
+
 # ---------------------------------------------------------------------------
 # In-memory job registry
 # ---------------------------------------------------------------------------
@@ -67,6 +73,10 @@ _jobs: dict[str, dict[str, Any]] = {}
 
 # One worker at a time – avoids loading multiple large models
 _executor = ThreadPoolExecutor(max_workers=1)
+
+# Mirrors the frontend's client-side cap — enforced here too since the client
+# check is trivially bypassable (e.g. direct API calls).
+MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 
 # ---------------------------------------------------------------------------
 # Supported languages (Whisper large-v3 supports ~99 languages)
@@ -248,6 +258,20 @@ def _transcribe_task(
     finally:
         _cleanup_file(audio_path)
         logger.info("Job %s finished with status '%s'.", job_id, job["status"])
+        db.save_job(
+            job_id=job_id,
+            filename=original_filename,
+            status=job["status"],
+            language=language,
+            detected_language=job.get("detected_language"),
+            transcript=job.get("transcript"),
+            original_transcript=job.get("original_transcript"),
+            english_transcript=job.get("english_transcript"),
+            comparison=job.get("comparison"),
+            segments=job.get("segments"),
+            duration_seconds=job.get("duration_seconds"),
+            processing_seconds=job.get("processing_seconds"),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -289,15 +313,26 @@ async def create_transcription_job(
     vad_filter: bool = bool(opts.get("vad_filter", True))
     include_timestamps: bool = bool(opts.get("include_timestamps", False))
 
-    # Save upload to a temporary file
+    # Save upload to a temporary file, streaming in chunks so we never hold the
+    # whole file in memory and can reject an oversized upload mid-stream.
     suffix = Path(file.filename or "audio.bin").suffix or ".bin"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    total_bytes = 0
     try:
-        content = await file.read()
-        tmp.write(content)
+        while chunk := await file.read(8 * 1024 * 1024):
+            total_bytes += len(chunk)
+            if total_bytes > MAX_UPLOAD_BYTES:
+                tmp.close()
+                _cleanup_file(tmp.name)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File exceeds the {MAX_UPLOAD_BYTES // (1024**3)} GB upload limit.",
+                )
+            tmp.write(chunk)
         tmp.flush()
     finally:
-        tmp.close()
+        if not tmp.closed:
+            tmp.close()
 
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {
@@ -355,3 +390,20 @@ async def get_transcription_status(job_id: str) -> dict:
         "processing_seconds": job.get("processing_seconds"),
         "filename": job.get("filename"),
     }
+
+
+@app.get("/api/history")
+async def get_history(limit: int = 50) -> dict:
+    if not db.is_enabled():
+        return {"enabled": False, "jobs": []}
+    return {"enabled": True, "jobs": db.list_recent(limit)}
+
+
+@app.get("/api/history/{job_id}")
+async def get_history_detail(job_id: str) -> dict:
+    if not db.is_enabled():
+        raise HTTPException(status_code=503, detail="History database is not available.")
+    record = db.get_by_id(job_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="History entry not found.")
+    return record

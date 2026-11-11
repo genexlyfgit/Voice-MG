@@ -117,14 +117,14 @@ const TranscriptViewer: React.FC<Props> = ({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center">
-            <FileText className="w-5 h-5 text-emerald-400" />
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+            <FileText className="w-5 h-5 text-emerald-600" />
           </div>
           <div>
-            <h2 className="font-semibold text-slate-100">Transcript</h2>
+            <h2 className="font-semibold text-slate-900">Transcript</h2>
             {detectedLanguage && (
               <p className="text-xs text-slate-500">
-                Detected: <span className="text-brand-400 font-medium">{detectedLanguage}</span>
+                Detected: <span className="text-brand-600 font-medium">{detectedLanguage}</span>
               </p>
             )}
           </div>
@@ -137,7 +137,7 @@ const TranscriptViewer: React.FC<Props> = ({
             className="btn-secondary text-sm py-2 px-3"
             title="Copy transcript"
           >
-            {copied ? <CheckCheck className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            {copied ? <CheckCheck className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
             <span className="hidden sm:inline">{copied ? 'Copied!' : 'Copy'}</span>
           </button>
           <button
@@ -152,7 +152,7 @@ const TranscriptViewer: React.FC<Props> = ({
       </div>
 
       {/* Edit hint */}
-      <div className="flex items-center gap-1.5 text-xs text-slate-600 mb-2">
+      <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-2">
         <Edit3 className="w-3.5 h-3.5" />
         <span>Click to edit before downloading</span>
       </div>
@@ -171,7 +171,7 @@ const TranscriptViewer: React.FC<Props> = ({
       {/* Original-language transcript (shown when translated) */}
       {isTranslated && (
         <details className="mt-4 group">
-          <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-300 transition-colors select-none flex items-center justify-between">
+          <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-800 transition-colors select-none flex items-center justify-between">
             <span>▶ Show original-language transcript (as spoken)</span>
             <button
               onClick={(e) => { e.preventDefault(); handleDownloadOriginal() }}
@@ -183,7 +183,7 @@ const TranscriptViewer: React.FC<Props> = ({
             </button>
           </summary>
           <pre
-            className="mt-2 max-h-60 overflow-y-auto text-xs text-slate-400 whitespace-pre-wrap font-mono leading-relaxed bg-slate-900/40 rounded-lg p-3"
+            className="mt-2 max-h-60 overflow-y-auto text-xs text-slate-500 whitespace-pre-wrap font-mono leading-relaxed bg-slate-50 border border-slate-200 rounded-lg p-3"
             dir="auto"
           >
             {originalTranscript}
@@ -191,10 +191,10 @@ const TranscriptViewer: React.FC<Props> = ({
         </details>
       )}
 
-      {/* Native vs. English comparison (always available for Gemini jobs) */}
+      {/* Native vs. English comparison (always available for cloud jobs) */}
       {comparison && comparison.length > 0 && (
         <details className="mt-4 group">
-          <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-300 transition-colors select-none flex items-center justify-between">
+          <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-800 transition-colors select-none flex items-center justify-between">
             <span>▶ Native vs. English comparison ({comparison.length} segments)</span>
             <span className="flex items-center gap-2">
               <button
@@ -218,7 +218,7 @@ const TranscriptViewer: React.FC<Props> = ({
           <div className="mt-2 max-h-72 overflow-y-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
-                <tr className="text-slate-500 text-left">
+                <tr className="text-slate-400 text-left">
                   <th className="py-1 pr-2 font-medium">Time</th>
                   <th className="py-1 pr-2 font-medium">Native</th>
                   <th className="py-1 font-medium">English</th>
@@ -226,12 +226,12 @@ const TranscriptViewer: React.FC<Props> = ({
               </thead>
               <tbody>
                 {comparison.map((row, i) => (
-                  <tr key={i} className="border-b border-slate-800 align-top">
-                    <td className="py-1.5 pr-2 font-mono text-slate-600 whitespace-nowrap">
+                  <tr key={i} className="border-b border-slate-200 align-top">
+                    <td className="py-1.5 pr-2 font-mono text-slate-400 whitespace-nowrap">
                       {formatTs(row.start)}&rarr;{formatTs(row.end)}
                     </td>
-                    <td className="py-1.5 pr-2 text-slate-300" dir="auto">{row.native}</td>
-                    <td className="py-1.5 text-slate-400" dir="auto">{row.english}</td>
+                    <td className="py-1.5 pr-2 text-slate-700" dir="auto">{row.native}</td>
+                    <td className="py-1.5 text-slate-500" dir="auto">{row.english}</td>
                   </tr>
                 ))}
               </tbody>
@@ -243,16 +243,16 @@ const TranscriptViewer: React.FC<Props> = ({
       {/* Segment timestamps (if available and enabled) */}
       {includeTimestamps && segments && segments.length > 0 && (
         <details className="mt-4 group">
-          <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-300 transition-colors select-none">
+          <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-800 transition-colors select-none">
             ▶ Show raw segments with timestamps ({segments.length})
           </summary>
           <div className="mt-2 max-h-60 overflow-y-auto space-y-1">
             {segments.map((seg, i) => (
-              <div key={i} className="flex gap-3 text-xs py-1 border-b border-slate-800">
-                <span className="flex-shrink-0 font-mono text-slate-600">
+              <div key={i} className="flex gap-3 text-xs py-1 border-b border-slate-200">
+                <span className="flex-shrink-0 font-mono text-slate-400">
                   [{formatTs(seg.start)} → {formatTs(seg.end)}]
                 </span>
-                <span className="text-slate-400" dir="auto">{seg.text.trim()}</span>
+                <span className="text-slate-600" dir="auto">{seg.text.trim()}</span>
               </div>
             ))}
           </div>

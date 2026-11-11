@@ -14,12 +14,12 @@ interface Props {
 }
 
 const STATUS_CONFIG = {
-  idle: { color: 'text-slate-500', icon: null, label: 'Ready' },
-  uploading: { color: 'text-blue-400', icon: 'spinner', label: 'Uploading…' },
-  queued: { color: 'text-yellow-400', icon: 'spinner', label: 'Queued' },
-  processing: { color: 'text-brand-400', icon: 'spinner', label: 'Transcribing…' },
-  done: { color: 'text-emerald-400', icon: 'check', label: 'Complete' },
-  error: { color: 'text-red-400', icon: 'error', label: 'Error' },
+  idle: { color: 'text-slate-400', icon: null, label: 'Ready' },
+  uploading: { color: 'text-blue-600', icon: 'spinner', label: 'Uploading…' },
+  queued: { color: 'text-yellow-600', icon: 'spinner', label: 'Queued' },
+  processing: { color: 'text-brand-600', icon: 'spinner', label: 'Transcribing…' },
+  done: { color: 'text-emerald-600', icon: 'check', label: 'Complete' },
+  error: { color: 'text-red-600', icon: 'error', label: 'Error' },
 }
 
 function formatDuration(secs: number) {
@@ -35,17 +35,17 @@ const StatusPanel: React.FC<Props> = ({
   const pct = Math.min(100, Math.max(0, Math.round(transcribePercent)))
 
   return (
-    <div className="glass-card p-5 space-y-4">
+    <div className="card-flat p-4 space-y-3.5 shrink-0 shadow-sm">
       {/* Backend health — only shown when online */}
       {backendOk === true && (
         <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-2 text-slate-400">
+          <div className="flex items-center gap-2 text-slate-500">
             <Cpu className="w-4 h-4" />
             <span>Backend</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="status-dot bg-emerald-400 animate-pulse-slow" />
-            <span className="text-emerald-400 text-xs font-medium">Online · {device}</span>
+            <span className="status-dot bg-emerald-500 animate-pulse-slow" />
+            <span className="text-emerald-600 text-xs font-medium">Online · {device}</span>
           </div>
         </div>
       )}
@@ -60,20 +60,20 @@ const StatusPanel: React.FC<Props> = ({
         </div>
         <div className="flex-1 min-w-0">
           <p className={`font-semibold text-sm ${cfg.color}`}>{cfg.label}</p>
-          <p className="text-slate-400 text-sm mt-0.5 break-words">{message || 'Upload audio and click Transcribe'}</p>
+          <p className="text-slate-500 text-sm mt-0.5 break-words">{message || 'Upload audio and click Transcribe'}</p>
         </div>
       </div>
 
       {/* Upload progress bar */}
       {status === 'uploading' && (
         <div className="space-y-1">
-          <div className="flex justify-between text-xs text-slate-500">
+          <div className="flex justify-between text-xs text-slate-400">
             <span>Uploading file</span>
             <span>{uploadPercent}%</span>
           </div>
-          <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
             <div
-              className="h-full bg-brand-500 rounded-full transition-all duration-200"
+              className="h-full bg-brand-600 rounded-full transition-all duration-200"
               style={{ width: `${uploadPercent}%` }}
             />
           </div>
@@ -83,15 +83,15 @@ const StatusPanel: React.FC<Props> = ({
       {/* Queued state indicator */}
       {status === 'queued' && (
         <div className="space-y-1.5 pt-1">
-          <div className="flex justify-between text-xs text-slate-400">
+          <div className="flex justify-between text-xs text-slate-500">
             <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-ping" />
+              <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-ping" />
               Waiting for worker slot…
             </span>
-            <span className="text-yellow-400/80 font-mono">0%</span>
+            <span className="text-yellow-600 font-mono">0%</span>
           </div>
-          <div className="h-2 bg-slate-900/80 border border-slate-700/50 rounded-full overflow-hidden">
-            <div className="h-full bg-yellow-500/40 rounded-full w-full animate-pulse" />
+          <div className="h-2 bg-slate-100 border border-slate-200 rounded-full overflow-hidden">
+            <div className="h-full bg-yellow-400/60 rounded-full w-full animate-pulse" />
           </div>
         </div>
       )}
@@ -101,51 +101,51 @@ const StatusPanel: React.FC<Props> = ({
         <div className="space-y-2 pt-1 animate-fade-in">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-brand-400 animate-pulse" />
-              <span className="text-slate-300 font-medium">Transcribing audio</span>
+              <span className="inline-block w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
+              <span className="text-slate-700 font-medium">Transcribing audio</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-brand-300 font-bold font-mono text-sm tracking-tight">
+              <span className="text-brand-600 font-bold font-mono text-sm tracking-tight">
                 {pct}%
               </span>
             </div>
           </div>
 
-          <div className="h-3 bg-slate-900/90 border border-slate-700/70 rounded-full overflow-hidden p-0.5 relative shadow-inner">
+          <div className="h-3 bg-slate-100 border border-slate-200 rounded-full overflow-hidden p-0.5 relative shadow-inner">
             <div
-              className="h-full bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-400 rounded-full transition-all duration-500 ease-out relative overflow-hidden shadow-sm"
+              className="h-full bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-500 rounded-full transition-all duration-500 ease-out relative overflow-hidden shadow-sm"
               style={{ width: `${pct}%` }}
             >
               <div className="absolute inset-0 bg-white/20 animate-pulse" />
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-500">
+          <div className="flex items-center justify-between text-[11px] text-slate-400">
             <span>Audio stream progress</span>
-            <span>{pct === 0 ? 'Loading Whisper model…' : `${pct}% completed`}</span>
+            <span>{pct === 0 ? 'Loading model…' : `${pct}% completed`}</span>
           </div>
         </div>
       )}
 
       {/* Meta info */}
       {(detectedLanguage || durationSeconds !== undefined || processingSeconds !== undefined) && (
-        <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-700/50">
+        <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-200">
           {detectedLanguage && (
             <div className="text-xs">
-              <span className="text-slate-600">Language: </span>
-              <span className="text-brand-400 font-medium">{detectedLanguage}</span>
+              <span className="text-slate-400">Language: </span>
+              <span className="text-brand-600 font-medium">{detectedLanguage}</span>
             </div>
           )}
           {durationSeconds !== undefined && (
             <div className="text-xs">
-              <span className="text-slate-600">Duration: </span>
-              <span className="text-slate-300 font-medium">{formatDuration(durationSeconds)}</span>
+              <span className="text-slate-400">Duration: </span>
+              <span className="text-slate-700 font-medium">{formatDuration(durationSeconds)}</span>
             </div>
           )}
           {processingSeconds !== undefined && (
             <div className="text-xs">
-              <span className="text-slate-600">Processing: </span>
-              <span className="text-slate-300 font-medium">{formatDuration(processingSeconds)}</span>
+              <span className="text-slate-400">Processing: </span>
+              <span className="text-slate-700 font-medium">{formatDuration(processingSeconds)}</span>
             </div>
           )}
         </div>
